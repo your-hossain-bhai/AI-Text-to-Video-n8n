@@ -1,0 +1,551 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e6732d2e-9aee-4c2d-bf74-2474c2c019ef",
+      "name": "When clicking ‘Execute workflow’",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "042bf5a1-2ddb-4583-b402-969a7d9d6f17",
+              "name": "topic",
+              "value": "A tiny astronaut discovers a mysterious glowing forest on an alien planet",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "585e32a3-2475-4d5a-8448-4612171d7e9d",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -272,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-flash-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a short-form video content writer.\n\nCreate content for this topic:\n\n{{ $('Edit Fields').item.json.topic }}\n\nReturn ONLY valid JSON in exactly this format:\n\n{\n  \"hook\": \"A short attention-grabbing opening sentence\",\n  \"script\": \"A 20-30 second narration script\",\n  \"caption\": \"A short social media caption\",\n  \"hashtags\": \"#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5\"\n}\n\nMake the hook curiosity-driven.\nMake the script natural and easy to narrate.\nDo not use emojis.\nDo not use markdown."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "923dc4db-b54f-4665-8b48-a0c4419d60b9",
+      "name": "Message a model",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -48,
+        -160
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "0a0GlPCIChUR9k2B",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.content.parts[0].text;\n\nconst data = JSON.parse(raw);\n\nreturn [\n  {\n    json: {\n      hook: data.hook,\n      script: data.script,\n      caption: data.caption,\n      hashtags: data.hashtags\n    }\n  }\n];"
+      },
+      "id": "96a2009f-e941-4d1c-a4eb-82b244c10099",
+      "name": "Parse Script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.shotstack.io/ingest/stage/upload",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "224bd60e-f03d-41c2-bab6-13e80e904c5f",
+      "name": "Get Upload URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        -160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "JFw13SrrbOGSi9nD",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "speech",
+        "voice": {
+          "__rl": true,
+          "value": "JBFqnCBsd6RMkjVDRZzb",
+          "mode": "list",
+          "cachedResultName": "George - Warm, Captivating Storyteller"
+        },
+        "text": "={{ $('Parse Script').item.json.script }}",
+        "additionalOptions": {
+          "model": {
+            "__rl": true,
+            "mode": "list",
+            "value": "eleven_multilingual_v2"
+          }
+        },
+        "requestOptions": {}
+      },
+      "id": "5f4588a4-6143-4fc7-830a-a75c46fc696b",
+      "name": "Convert text to speech",
+      "type": "@elevenlabs/n8n-nodes-elevenlabs.elevenLabs",
+      "typeVersion": 1,
+      "position": [
+        688,
+        -16
+      ],
+      "credentials": {
+        "elevenLabsApi": {
+          "id": "dVK9MPiBm6lLTrSH",
+          "name": "ElevenLabs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const audio = $input.first();\nconst shotstack = $('Get Upload URL').first().json;\n\nreturn [\n  {\n    json: {\n      uploadUrl: shotstack.data.attributes.url,\n      sourceId: shotstack.data.id\n    },\n    binary: audio.binary\n  }\n];"
+      },
+      "id": "28c29206-f13a-481e-a561-4301123f1d25",
+      "name": "Prepare Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.uploadUrl }}",
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "be179b0b-c357-4ec0-9a16-22cb4cc7766b",
+      "name": "Upload Audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1072,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "id": "8d80f97c-4c63-4067-b456-7c8758600c6e",
+      "name": "Wait For Ingest",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1296,
+        -160
+      ],
+      "webhookId": "ef833c67-dbf4-4682-b413-73fd760f1299"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.shotstack.io/ingest/stage/sources/{{ $('Prepare Upload').item.json.sourceId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "83f26745-6004-435e-a050-1489660a0298",
+      "name": "Get Source",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1520,
+        -160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "JFw13SrrbOGSi9nD",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.pexels.com/videos/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $('Edit Fields').item.json.topic }}"
+            },
+            {
+              "name": "orientation",
+              "value": "portrait"
+            },
+            {
+              "name": "per_page",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1b71768f-9d3a-4ba9-a65e-dda968626bcd",
+      "name": "Search Pexels Videos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1744,
+        -160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "n4MVdBFOyxzA69tt",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const videos = $input.first().json.videos;\n\nif (!videos || videos.length === 0) {\n  throw new Error(\"No videos found\");\n}\n\nfor (const video of videos) {\n  const files = video.video_files || [];\n\n  const suitable = files\n    .filter(file => file.width && file.height)\n    .filter(file => file.height >= file.width)\n    .sort((a, b) => {\n      const aDiff = Math.abs(a.width - 720);\n      const bDiff = Math.abs(b.width - 720);\n      return aDiff - bDiff;\n    });\n\n  if (suitable.length > 0) {\n    return [{\n      json: {\n        video_id: video.id,\n        duration: video.duration,\n        video_url: suitable[0].link,\n        width: suitable[0].width,\n        height: suitable[0].height\n      }\n    }];\n  }\n}\n\nthrow new Error(\"No suitable vertical video found\");"
+      },
+      "id": "0e8d6bc5-a65c-4092-a830-922e89a4ce58",
+      "name": "Pick Video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1968,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.shotstack.io/edit/stage/render",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"timeline\": {\n    \"background\": \"#000000\",\n    \"soundtrack\": { \"src\": \"{{ $('Get Source').item.json.data.attributes.source }}\", \"effect\": \"fadeOut\" },\n    \"tracks\": [\n      {\n        \"clips\": [\n          { \"asset\": { \"type\": \"video\", \"src\": \"{{ $json.video_url }}\" }, \"start\": 0, \"length\": 20, \"fit\": \"cover\" }\n        ]\n      }\n    ]\n  },\n  \"output\": { \"format\": \"mp4\", \"size\": { \"width\": 1080, \"height\": 1920 } }\n}",
+        "options": {}
+      },
+      "id": "76ba09c3-533a-4b34-984e-a7e6aefe0bbc",
+      "name": "Render Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2192,
+        -160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "JFw13SrrbOGSi9nD",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 45
+      },
+      "id": "2d30d07c-23d7-45a3-b3ea-2b5673f93969",
+      "name": "Wait For Render",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2416,
+        -160
+      ],
+      "webhookId": "c481cb74-9821-4c41-aada-0d2b17526d0a"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.shotstack.io/edit/stage/render/{{ $('Render Video').item.json.response.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b01c5b09-c48d-4848-8afb-5a74d0676898",
+      "name": "Get Render Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        -160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "JFw13SrrbOGSi9nD",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "AI VIDEO GENERATION,\nSPEECH TO TEXT, AUDIO TO VIDEO",
+        "height": 112,
+        "width": 150
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1024,
+        176
+      ],
+      "typeVersion": 1,
+      "id": "7bd32896-787f-409b-9c5a-71c4cb2d91e0",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "FUC*KING  EXHAUSTED",
+        "height": 80,
+        "width": 150
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1152,
+        240
+      ],
+      "typeVersion": 1,
+      "id": "c6768caa-2772-4d51-a092-66faf684bdc0",
+      "name": "Sticky Note1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Script": {
+      "main": [
+        [
+          {
+            "node": "Get Upload URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Upload URL": {
+      "main": [
+        [
+          {
+            "node": "Convert text to speech",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert text to speech": {
+      "main": [
+        [
+          {
+            "node": "Prepare Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Upload": {
+      "main": [
+        [
+          {
+            "node": "Upload Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Audio": {
+      "main": [
+        [
+          {
+            "node": "Wait For Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait For Ingest": {
+      "main": [
+        [
+          {
+            "node": "Get Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Source": {
+      "main": [
+        [
+          {
+            "node": "Search Pexels Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Pexels Videos": {
+      "main": [
+        [
+          {
+            "node": "Pick Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Video": {
+      "main": [
+        [
+          {
+            "node": "Render Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Video": {
+      "main": [
+        [
+          {
+            "node": "Wait For Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait For Render": {
+      "main": [
+        [
+          {
+            "node": "Get Render Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b0960202-b671-4724-9f3d-cf28b3849cbb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d480e3a8fbcf7704fecb2186c79c30abeda9fe9e93d2d93cc03ae6fb9aa7f997"
+  },
+  "nodeGroups": [],
+  "id": "s3XozLzgb7zwtkcf",
+  "tags": []
+}
